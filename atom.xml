@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+    <id>https://lvzc0.github.io/lzc.github.io/</id>
+    <title> 老超的小屋</title>
+    <updated>2025-02-16T14:52:29.281Z</updated>
+    <generator>https://github.com/jpmonette/feed</generator>
+    <link rel="alternate" href="https://lvzc0.github.io/lzc.github.io/"/>
+    <link rel="self" href="https://lvzc0.github.io/lzc.github.io/atom.xml"/>
+    <subtitle>随便记点东西</subtitle>
+    <logo>https://lvzc0.github.io/lzc.github.io/images/avatar.png</logo>
+    <icon>https://lvzc0.github.io/lzc.github.io/favicon.ico</icon>
+    <rights>All rights reserved 2025,  老超的小屋</rights>
+    <entry>
+        <title type="html"><![CDATA[分析 YalSAT 变量选择与数据更新过程]]></title>
+        <id>https://lvzc0.github.io/lzc.github.io/post/fen-xi-yalsat-bian-liang-xuan-ze-yu-shu-ju-geng-xin-guo-cheng/</id>
+        <link href="https://lvzc0.github.io/lzc.github.io/post/fen-xi-yalsat-bian-liang-xuan-ze-yu-shu-ju-geng-xin-guo-cheng/">
+        </link>
+        <updated>2025-02-16T09:21:06.000Z</updated>
+        <content type="html"><![CDATA[<p>该伪代码描述了 YalSAT 算法中的**变量选择（Variable Selection）和数据更新（Data Update）**过程，主要涉及 变量翻转（flip） 以及 break score（bscore） 的更新策略。<br>
+<img src="https://lvzc0.github.io/lzc.github.io//post-images/1739697715659.PNG" alt="" loading="lazy"></p>
+<ol>
+<li>主要数据结构</li>
+</ol>
+<p>变量	描述<br>
+bscore[]	每个变量的 break score（翻转后导致不满足子句的数量）。<br>
+truevar[]	变量赋值状态，truevar[v] 代表变量 v 的当前赋值。<br>
+numtruelit[]	记录每个子句中当前为 true 的文字（literals）数量。<br>
+lit_list[]	记录哪些文字属于哪些子句，用于翻转时更新状态。<br>
+occ_list[]	记录某个文字在哪些子句中出现，辅助 flip 操作。</p>
+<ol>
+<li>伪代码解析<br>
+Step 1: 选择要翻转的变量<br>
+Select fv among v ∈ lit_list[uc] based on bscore[v]</li>
+</ol>
+<ul>
+<li>这里 fv 是要翻转的变量，选择方式基于 bscore[v]，即翻转变量 v 之后新增不满足子句的个数。</li>
+<li>uc 代表未满足的子句（unsatisfied clause）。</li>
+<li>这个策略通常会选择 break score 最小 的变量（即翻转后带来最少破坏）。<br>
+Step 2: 处理翻转变量的影响<br>
+3: for i in occ_list[¬fv] do</li>
+<li>¬fv 是 fv 的相反文字（negated literal）。</li>
+<li>occ_list[¬fv] 代表 ¬fv 出现的所有子句。</li>
+</ul>
+<hr>
+<p>Step 2.1: 更新变量赋值<br>
+4:  c = occ_list[¬fv][i]   // 随机获取子句索引 c<br>
+5:  truevar[c] ⊕= ¬fv      // 使用 XOR 翻转选中的变量</p>
+<ul>
+<li>这里 truevar[c] 记录了该子句 c 中的真值变量。</li>
+<li>由于 fv 被翻转，其相反的 ¬fv 也需要在 truevar[] 中进行调整。</li>
+<li>这里使用了 XOR 位运算，提高了翻转的效率。</li>
+</ul>
+<p>Step 2.2: 维护 numtruelit 状态<br>
+6:  if numtruelit[c] == 1 then<br>
+7:  // # of true literals: 1 → 0<br>
+8:  add c to UCB          // 记录新的未满足子句<br>
+9:  bscore[¬fv]--<br>
+如果 numtruelit[c] == 1，说明 c 这个子句原本只有一个 true 变量，而 fv 被翻转后使其变成 false，导致 c 变成未满足子句。<br>
+于是：</p>
+<ul>
+<li>c 被加入到未满足子句集合 UCB（Unsatisfied Clause Buffer）。</li>
+<li>bscore[¬fv]--，减少 ¬fv 的 break score（因为它的翻转破坏了 c）。</li>
+</ul>
+<p>Step 2.3: 处理 numtruelit == 2 的情况<br>
+10: else if numtruelit[c] == 2 then<br>
+11: // # of true literals: 2 → 112: tv = truevar[c]       // 仅剩一个 true 变量13: bscore[tv]++</p>
+<ul>
+<li>如果 c 原本有 两个 true 变量（numtruelit[c] == 2），那么 fv 翻转后，它就只剩下 1 个 true 变量。</li>
+<li>由于 c 仍然满足，但只剩下唯一的 true 变量，因此：
+<ul>
+<li>这个唯一的 tv 变得 更关键，它的 bscore[tv] 需要 增加，表示它的翻转更有可能影响 c。</li>
+</ul>
+</li>
+</ul>
+<p>Step 2.4: 最终更新 numtruelit<br>
+15: numtruelit[c]--</p>
+<ul>
+<li>无论是哪种情况，子句 c 的 numtruelit 都要减 1，因为 fv 被翻转后导致 c 中的 true 变量数量减少。</li>
+</ul>
+<p>Step 3: 更新 break score（省略）<br>
+17: // break score update loop for satisfying literal (omitted)</p>
+<ul>
+<li>这里表示还有针对 satisfying literal 的 break score 更新过程，但没有展示出来。</li>
+<li>可能包括：
+<ul>
+<li>计算哪些子句因为 fv 翻转后变得满足，更新它们的 bscore。</li>
+<li>可能涉及 make score（使某个子句变得满足的变量数）</li>
+</ul>
+</li>
+</ul>
+<ol start="2">
+<li>关键优化点</li>
+<li>使用 bscore[] 选择变量</li>
+<li>选择 break score 最低的变量进行翻转，减少破坏性。</li>
+<li>高效的变量翻转操作</li>
+</ol>
+<ul>
+<li>采用 XOR 位运算 处理 truevar，相比传统的赋值操作更加高效。</li>
+</ul>
+<ol start="3">
+<li>动态调整 bscore</li>
+</ol>
+<ul>
+<li>如果一个子句变成未满足 (numtruelit == 1 → 0)，降低 bscore[¬fv]。</li>
+<li>如果一个子句从 两个 true 变量 变成 仅剩一个 true 变量 (numtruelit == 2 → 1)，增加 bscore[tv]。</li>
+</ul>
+<ol start="4">
+<li>维护 numtruelit[] 确保数据一致性</li>
+</ol>
+<ul>
+<li>numtruelit[c] 用于跟踪子句 c 里的 true 变量数，确保 flip 后的状态正确。</li>
+</ul>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[到底该怎么办呢？]]></title>
+        <id>https://lvzc0.github.io/lzc.github.io/post/dao-di-gai-zen-me-ban-ni/</id>
+        <link href="https://lvzc0.github.io/lzc.github.io/post/dao-di-gai-zen-me-ban-ni/">
+        </link>
+        <updated>2025-02-16T05:41:49.000Z</updated>
+        <content type="html"><![CDATA[<p>是否要相信一切都是最好的安排？</p>
+<p>这样才可以？</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[解决安装xilinx vivado2023.2 遇到的问题]]></title>
+        <id>https://lvzc0.github.io/lzc.github.io/post/jie-jue-an-zhuang-xilinx-vivado20232-yu-dao-de-wen-ti/</id>
+        <link href="https://lvzc0.github.io/lzc.github.io/post/jie-jue-an-zhuang-xilinx-vivado20232-yu-dao-de-wen-ti/">
+        </link>
+        <updated>2025-01-26T03:07:21.000Z</updated>
+        <content type="html"><![CDATA[<p>1.使用 MobaXterm ，因为高分辨率显示器，不能正常运行的问题：<br>
+<img src="https://lvzc0.github.io/lzc.github.io//post-images/1737861667744.png" alt="" loading="lazy"></p>
+<p>解决办法：<br>
+export XAUTHORITY=$HOME/.Xauthority<br>
+<img src="https://lvzc0.github.io/lzc.github.io//post-images/1739260452650.png" alt="" loading="lazy"></p>
+]]></content>
+    </entry>
+</feed>
